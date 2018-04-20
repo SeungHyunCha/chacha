@@ -1,83 +1,71 @@
-import openpyxl
-
+import xlrd
+from xlutils.copy import copy
+ 
 class ParsingExcel:
-    def __init__(self, name, change):
+    def __init__(self, name, change_text):
         self.name = name
-        self.change = change
+        self.change_text = change_text
+        self.index = None
         self.book = None
+        self.copy = None
         self.__getWorkbook()
-        
+        self.__addWorkbook()
+    
     def __getWorkbook(self):
-        self.book = openpyxl.load_workbook(self.name)
+        self.book = xlrd.open_workbook(self.name)
         
-    def getS1(self):
-        return self.book['Sheet1']
+    def __addWorkbook(self):
+        self.copy = copy(self.book)
+    # Get sheet
+    def getpmEventFormat(self):
+        return self.book.sheet_by_name('pmEventFormat')
     
-    def getS2(self):
-        return self.book['Sheet2']
+    def getpmEvents(self):
+        return self.book.sheet_by_name('pmEvents')
     
-    def getS3(self):
-        return self.book['Sheet3']
+    def getLocalEvents(self):
+        return self.book.sheet_by_name('LocalEvents')
     
-    def getS4(self):
-        return self.book['Sheet4']
+    def getLocalEventFormat(self):
+        return self.book.sheet_by_name('LocalEventFormat')
     
-    def getS5(self):
-        return self.book['Sheet5']
+    def getEventParams(self):
+        return self.book.sheet_by_name('EventParams')
     
-    def getDeprecation(self, sheet):
-        for mycell in sheet.rows:
-            for col_num in range(sheet.max_column):
-                if mycell[col_num].value == 'deprecation':
-                    dep_list = {}
-                    # name
-                    dep_name = mycell[col_num].value
-                    dep_list.update({1:dep_name})
-                    # column
-                    dep_al = chr(65+col_num)
-                    dep_list.update({0:dep_al})
-                    # row
-                    dep_row = len(sheet[dep_al])
-                    for i in range(2,dep_row+1):
-                        dep_list.update({i:sheet[dep_al + str(i)].value})
-        
-        return dep_list
-    
-    def getConvert(self, sheet):
-        for mycell in sheet.rows:
-            for col_num in range(sheet.max_column):
-                if mycell[col_num].value == 'convert':
-                    con_list = {}
-                    #name
-                    con_name = mycell[col_num].value
-                    con_list.update({1:con_name})
-                    #column
-                    con_al = chr(65+col_num)
-                    con_list.update({0:con_al})
-                    #row
-                    con_row= len(sheet[con_al])
-                    for i in range(2,con_row+1):
-                        con_list.update({i:sheet[con_al + str(i)].value})
-        
-        return con_list
-    
-    def reasonforChange(self, sheet, dep, con):
-        for key, value in dep.items():
-            if value == 'D' or value == 'N': 
-                con[key] = self.change
-                sheet[con[0] + str(key)].value = self.change 
+    def getDeprecationReasonList(self, sheet):
+        col_index = 0
+#         print sheet.name
+        for cell_name in sheet.row_values(0): # col_list
+            if cell_name == u"Deprecation? (N/D/'blank')":
+#                 print cell_name
+                deprecation_list = sheet.col_values(col_index)
+#                 print len(deprecation_list)
+            elif cell_name == u'Reason for change':
+#                 print cell_name
+                self.index = col_index
+#                 change_list = sheet.col_values(col_index)
+#                 print change_list
             else: pass
-        self.book.save(self.name)
-        return con
+            col_index += 1
+        return deprecation_list
+    
+    def reasonforChange(self, sheet, dep):
+        getsheet = self.copy.get_sheet(sheet.name)
+        row_index = 3
+        for col_value in dep:
+            if col_value == u'D' or col_value == u'N': 
+                getsheet.write(row_index, self.index, u'%s' % self.change_text)
+            else: pass
+            row_index += 1
+
+    def save(self):
+        self.copy.save(self.name)
 
 if __name__ == '__main__':
-    excel = 'test.xlsx'
+    excel = 'CAH1091864_27_R46A_PA2.xls'
+#     excel = 'test.xlsx'
     parser = ParsingExcel(excel, 'test')
-    s1 = parser.getS1()
-    dep = parser.getDeprecation(s1)
-    print dep
-    con = parser.getConvert(s1)
-    print con
-    comp = parser.reasonforChange(s1, dep, con)
-    print comp
-    
+    eventparams_sheet = parser.getEventParams()
+    dep = parser.getDeprecationReasonList(eventparams_sheet)
+    parser.reasonforChange(eventparams_sheet, dep)
+    parser.save()
